@@ -92,6 +92,7 @@ class FlaskPartitionServer(PartitionServer):
         self.blueprint = blueprint 
         self._init_partition_fn = init_partition
         self.app = None
+        self.shutdown_callback = None
 
     def _init_partition(self):
         if self._init_partition_fn:
@@ -125,13 +126,16 @@ class FlaskPartitionServer(PartitionServer):
         if self.blueprint:
             app.register_blueprint(self.blueprint, url_prefix='/app')
 
-        # TODO: require a secret token
         @app.route('/control/shutdown', methods=['POST'])
         def shutdown_server():
 
             # Check request token
             if self.token and self.token != request.args.get('token'):
                 return Response(status=403)
+
+            # Call shutdown callback
+            if self.shutdown_callback is not None:
+                self.shutdown_callback()
 
             # http://flask.pocoo.org/snippets/67/
             func = request.environ.get('werkzeug.server.shutdown')
@@ -148,4 +152,7 @@ class FlaskPartitionServer(PartitionServer):
 
         # start server
         app.run(threaded=True, host='0.0.0.0', port=self.port)
+
+    def set_shutdown_callback(self, fn):
+        self.shutdown_callback = fn
 
