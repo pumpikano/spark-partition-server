@@ -29,6 +29,7 @@ class Coordinator(ServerThread):
         self.verbose = verbose
         self.hosts = {}
         self.token = token
+        self.register_callback = None
 
         # full_cluster will be None if the number of partitions
         # to await isn't specified
@@ -52,6 +53,11 @@ class Coordinator(ServerThread):
 
             j = request.get_json()
             partition, host, port = j['partition'], j['host'], j['port']
+
+            old_entry = None
+            if partition in self.hosts:
+                old_entry = self.hosts[partition]
+
             self.hosts[partition] = (host, port)
 
             if self.verbose:
@@ -62,6 +68,14 @@ class Coordinator(ServerThread):
                 if self.verbose:
                     print 'All %d expected partitions have registered' % (self.await_partitions)
                     self.print_hosts()
+
+            if self.register_callback is not None:
+                self.register_callback({
+                    'partition_ind': partition,
+                    'old_entry': old_entry,
+                    'new_entry': (host, port),
+                    'full_cluster': self.full_cluster
+                })
 
             return Response(status=200)
 
@@ -115,3 +129,6 @@ class Coordinator(ServerThread):
         """A helper to print out all known hosts."""
         for k, d in self.hosts.iteritems():
             print '%d - http://%s:%d/' % (k, d[0], d[1])
+
+    def set_register_callback(self, fn):
+        self.register_callback = fn
